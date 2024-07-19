@@ -33,6 +33,7 @@ class Trainer:
         self.num_epoch = self.hyperparameters['num_epoch']
         self.batch_size = self.hyperparameters['batch_size']
         self.lr = self.hyperparameters['lr']
+        self.patience = self.hyperparameters.get('patience', 10)  # Load patience with a default value
 
         self.device = get_device()
 
@@ -43,7 +44,7 @@ class Trainer:
 
         self.writer = SummaryWriter(self.results_dir + '/tensorboard_logs')
 
-    def save(self, checkpoints_dir, model, optimizer, epoch):
+    def save(self, checkpoints_dir, model, optimizer, epoch, best_train_loss):
         if not os.path.exists(checkpoints_dir):
             os.makedirs(checkpoints_dir)
 
@@ -51,6 +52,7 @@ class Trainer:
             'model': model.state_dict(),
             'optimizer': optimizer.state_dict(),
             'epoch': epoch,
+            'best_train_loss': best_train_loss,
             'hyperparameters': self.hyperparameters
         }, os.path.join(checkpoints_dir, 'best_model.pth'))
 
@@ -64,11 +66,12 @@ class Trainer:
         model.load_state_dict(dict_net['model'])
         optimizer.load_state_dict(dict_net['optimizer'])
         epoch = dict_net['epoch']
+        best_train_loss = dict_net.get('best_train_loss', float('inf'))
         self.hyperparameters = dict_net.get('hyperparameters', self.hyperparameters)
 
-        print(f'Loaded {epoch}th network with hyperparameters: {self.hyperparameters}')
+        print(f'Loaded {epoch}th network with hyperparameters: {self.hyperparameters}, best train loss: {best_train_loss:.4f}')
 
-        return model, optimizer, epoch
+        return model, optimizer, epoch, best_train_loss
 
     def get_model(self):
         if self.model_name == 'UNet3':
@@ -116,10 +119,11 @@ class Trainer:
 
         st_epoch = 0
         best_train_loss = float('inf')
+        patience_counter = 0  # Initialize patience counter
 
         if self.train_continue == 'on':
             print(self.checkpoints_dir)
-            model, optimizer, st_epoch = self.load(self.checkpoints_dir, model, self.device, optimizer)
+            model, optimizer, st_epoch, best_train_loss = self.load(self.checkpoints_dir, model, self.device, optimizer)
             model = model.to(self.device)
 
         for epoch in range(st_epoch + 1, self.num_epoch + 1):
@@ -154,9 +158,17 @@ class Trainer:
 
             if avg_train_loss < best_train_loss:
                 best_train_loss = avg_train_loss
-                self.save(self.checkpoints_dir, model, optimizer, epoch)
+                self.save(self.checkpoints_dir, model, optimizer, epoch, best_train_loss)
+                patience_counter = 0  # Reset patience counter
                 print(f"Saved best model at epoch {epoch} with training loss {best_train_loss:.4f}.")
+            else:
+                patience_counter += 1  # Increment patience counter
+                print(f'Patience Counter: {patience_counter}/{self.patience}')
+
+            # Check for early stopping
+            if patience_counter >= self.patience:
+                print(f'Early stopping triggered after {epoch} epochs')
+                break
 
         self.writer.close()
-
 

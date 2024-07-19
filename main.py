@@ -53,6 +53,7 @@ def main():
         parser.add_argument('--num_epoch', type=int, default=1000, help='Number of epochs (default: 1000)')
         parser.add_argument('--batch_size', type=int, default=8, help='Batch size (default: 8)')
         parser.add_argument('--lr', type=float, default=1e-5, help='Learning rate (default: 1e-5)')
+        parser.add_argument('--patience', type=int, default=10, help='Early stopping patience (default: 10)')
 
         args = parser.parse_args()
 
@@ -65,6 +66,7 @@ def main():
         num_epoch = args.num_epoch
         batch_size = args.batch_size
         lr = args.lr
+        patience = args.patience
         project_dir = os.path.join('/g', 'prevedel', 'members', 'Rauscher', 'final_projects', '2D-N2N-general')
         
         print(f"Using train data directory: {train_data_dir}")
@@ -75,6 +77,7 @@ def main():
         print(f"Number of epochs: {num_epoch}")
         print(f"Batch size: {batch_size}")
         print(f"Learning rate: {lr}")
+        print(f"Patience: {patience}")
 
     else:
         # Default settings for local testing
@@ -88,6 +91,7 @@ def main():
         num_epoch = 1000
         batch_size = 8
         lr = 1e-5
+        patience = 10
 
     data_dict = {
         'train_data_dir': train_data_dir,
@@ -100,7 +104,8 @@ def main():
             'UNet_base': unet_base,
             'num_epoch': num_epoch,
             'batch_size': batch_size,
-            'lr': lr
+            'lr': lr,
+            'patience': patience
         }
     }
 
@@ -109,5 +114,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
