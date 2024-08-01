@@ -382,3 +382,25 @@ def plot_as_image(data, title='Image Display', cmap='gray', colorbar=True):
 
     print(data.min())
     print(data.max())
+
+
+
+
+def crop_tiff_depth_to_divisible(path, divisor):
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            if file.lower().endswith(('.tif', '.tiff')):
+                file_path = os.path.join(root, file)
+                with tifffile.TiffFile(file_path) as tif:
+                    images = tif.asarray()
+                    depth = images.shape[0]
+                    
+                    # Check if depth is divisible by divisor
+                    if depth % divisor != 0:
+                        # Calculate new depth that is divisible
+                        new_depth = depth - (depth % divisor)
+                        cropped_images = images[:new_depth]
+                        
+                        # Save the cropped TIFF stack
+                        tifffile.imwrite(file_path, cropped_images, photometric='minisblack')
+                        print(f'Cropped and saved: {file_path}')

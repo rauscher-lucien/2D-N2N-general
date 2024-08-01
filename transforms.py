@@ -204,10 +204,10 @@ class CropToMultipleOf32Inference(object):
             numpy.ndarray: Stack of cropped images.
         """
 
-        stack = data[0]
-        h, w, num_slices = stack.shape  # Assuming stack is a numpy array with shape (H, W, Num_Slices)
+        input_slice = data
 
-        # Compute new dimensions to be multiples of 32
+        h, w = data.shape
+
         new_h = h - (h % 32)
         new_w = w - (w % 32)
 
@@ -219,12 +219,9 @@ class CropToMultipleOf32Inference(object):
         id_y = np.arange(top, top + new_h, 1)[:, np.newaxis].astype(np.int32)
         id_x = np.arange(left, left + new_w, 1).astype(np.int32)
 
-        # Crop each slice in the stack
-        cropped_stack = np.zeros((new_h, new_w, num_slices), dtype=stack.dtype)
-        for i in range(num_slices):
-            cropped_stack[:, :, i] = stack[id_y, id_x, i].squeeze()
+        input_slice_cropped = input_slice[id_y, id_x].squeeze()
 
-        return cropped_stack
+        return input_slice_cropped
     
 
 class CropToMultipleOf16Inference(object):

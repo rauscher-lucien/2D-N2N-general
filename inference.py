@@ -56,8 +56,8 @@ def main():
 
     #********************************************************#
 
-    project_dir = r"\\tier2.embl.de\prevedel\members\Rauscher\final_projects\2D-N2N-general\test_1_big_data_small_2_model_nameUNet5_UNet_base32_num_epoch1000_batch_size8_lr1e-05"
-    data_dir = r"C:\Users\rausc\Documents\EMBL\data\Nematostella_B"
+    project_dir = r"\\tier2.embl.de\prevedel\members\Rauscher\final_projects\2D-N2N-general\test_1_big_data_small-only_droso_model_nameUNet3_UNet_base64_num_epoch1000_batch_size8_lr1e-05_patience50"
+    data_dir = r"\\tier2.embl.de\prevedel\members\Rauscher\data\big_data_small-test\nema"
     inference_name = os.path.basename(data_dir)
 
     project_name = os.path.basename(project_dir)
@@ -88,7 +88,7 @@ def main():
     
     inf_transform = transforms.Compose([
         NormalizeInference(mean, std),
-        CropToMultipleOf16Inference(),
+        CropToMultipleOf32Inference(),
         ToTensorInference(),
     ])
 

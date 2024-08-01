@@ -102,6 +102,8 @@ class Trainer:
             ToNumpy()
         ])
 
+        crop_tiff_depth_to_divisible(self.train_data_dir, self.batch_size)
+
         ### make dataset and loader ###
         dataset_train = TwoSliceDataset(self.train_data_dir, transform_train)
 
