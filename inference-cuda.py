@@ -7,6 +7,7 @@ import torch
 import numpy as np
 import tifffile
 from torchvision import transforms
+import time
 
 sys.path.append(os.path.join(".."))
 
@@ -53,7 +54,6 @@ def load_model(checkpoints_dir, model, optimizer=None, device='cpu'):
 
     return model, optimizer, epoch
 
-
 def load_hyperparameters(checkpoints_dir, device='cpu'):
     checkpoint_path = os.path.join(checkpoints_dir, 'best_model.pth')
     if not os.path.exists(checkpoint_path):
@@ -65,23 +65,6 @@ def load_hyperparameters(checkpoints_dir, device='cpu'):
 
     return hyperparameters, epoch
 
-def load_model(checkpoints_dir, model, optimizer=None, device='cpu'):
-    if optimizer is None:
-        optimizer = torch.optim.Adam(model.parameters())  
-
-    checkpoint_path = os.path.join(checkpoints_dir, 'best_model.pth')
-    dict_net = torch.load(checkpoint_path, map_location=device)
-
-    model.load_state_dict(dict_net['model'])
-    optimizer.load_state_dict(dict_net['optimizer'])
-    epoch = dict_net['epoch']
-
-    model.to(device)
-
-    print(f'Loaded {epoch}th network with hyperparameters: {dict_net["hyperparameters"]}')
-
-    return model, optimizer, epoch
-
 def get_model(model_name, UNet_base):
     if model_name == 'UNet3':
         return UNet3(base=UNet_base)
@@ -91,8 +74,6 @@ def get_model(model_name, UNet_base):
         return UNet5(base=UNet_base)
     else:
         raise ValueError(f"Unknown model name: {model_name}")
-
-
 
 def main():
     setup_logging()
@@ -170,19 +151,45 @@ def main():
     print("Starting inference")
     output_images = []  # List to collect output images
 
-    with torch.no_grad():
-        model.eval()
+    if torch.cuda.is_available():
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        start_event.record()
 
-        for batch, data in enumerate(inf_loader):
-            input_img = data.to(device)
+        with torch.no_grad():
+            model.eval()
+            for batch, data in enumerate(inf_loader):
+                input_img = data.to(device)
+                output_img = model(input_img)
+                output_img_np = inv_inf_transform(output_img)  # Convert output tensors to numpy format for saving
 
-            output_img = model(input_img)
-            output_img_np = inv_inf_transform(output_img)  # Convert output tensors to numpy format for saving
+                for img in output_img_np:
+                    output_images.append(img)
 
-            for img in output_img_np:
-                output_images.append(img)
+                print('BATCH %04d/%04d' % (batch, len(inf_loader)))
 
-            print('BATCH %04d/%04d' % (batch, len(inf_loader)))
+        end_event.record()
+        torch.cuda.synchronize()
+        inference_time = start_event.elapsed_time(end_event) / 1000  # Convert to seconds
+    else:
+        start_time = time.time()
+
+        with torch.no_grad():
+            model.eval()
+            for batch, data in enumerate(inf_loader):
+                input_img = data.to(device)
+                output_img = model(input_img)
+                output_img_np = inv_inf_transform(output_img)  # Convert output tensors to numpy format for saving
+
+                for img in output_img_np:
+                    output_images.append(img)
+
+                print('BATCH %04d/%04d' % (batch, len(inf_loader)))
+
+        inference_time = time.time() - start_time
+
+    print(f"Inference Time: {inference_time} seconds")
+    logging.info(f"Inference Time: {inference_time} seconds")
     
     # Stack and save output images
     output_stack = np.stack(output_images, axis=0)
