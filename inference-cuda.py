@@ -36,11 +36,11 @@ def setup_logging(log_file='logging.log'):
     sys.stdout = StreamToLogger(logging.getLogger('STDOUT'), logging.INFO)
     sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
 
-def load(checkpoints_dir, model, epoch=1, optimizer=None, device='cpu'):
+def load_model(checkpoints_dir, model, optimizer=None, device='cpu'):
     if optimizer is None:
         optimizer = torch.optim.Adam(model.parameters())  
 
-    checkpoint_path = os.path.join(checkpoints_dir, f'best_model.pth')
+    checkpoint_path = os.path.join(checkpoints_dir, 'best_model.pth')
     dict_net = torch.load(checkpoint_path, map_location=device)
 
     model.load_state_dict(dict_net['model'])
@@ -49,9 +49,50 @@ def load(checkpoints_dir, model, epoch=1, optimizer=None, device='cpu'):
 
     model.to(device)
 
-    print('Loaded %dth network' % epoch)
+    print(f'Loaded {epoch}th network with hyperparameters: {dict_net["hyperparameters"]}')
 
-    return model, epoch
+    return model, optimizer, epoch
+
+
+def load_hyperparameters(checkpoints_dir, device='cpu'):
+    checkpoint_path = os.path.join(checkpoints_dir, 'best_model.pth')
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(f"No checkpoint found at {checkpoint_path}")
+
+    dict_net = torch.load(checkpoint_path, map_location=device)
+    hyperparameters = dict_net['hyperparameters']
+    epoch = dict_net['epoch']
+
+    return hyperparameters, epoch
+
+def load_model(checkpoints_dir, model, optimizer=None, device='cpu'):
+    if optimizer is None:
+        optimizer = torch.optim.Adam(model.parameters())  
+
+    checkpoint_path = os.path.join(checkpoints_dir, 'best_model.pth')
+    dict_net = torch.load(checkpoint_path, map_location=device)
+
+    model.load_state_dict(dict_net['model'])
+    optimizer.load_state_dict(dict_net['optimizer'])
+    epoch = dict_net['epoch']
+
+    model.to(device)
+
+    print(f'Loaded {epoch}th network with hyperparameters: {dict_net["hyperparameters"]}')
+
+    return model, optimizer, epoch
+
+def get_model(model_name, UNet_base):
+    if model_name == 'UNet3':
+        return UNet3(base=UNet_base)
+    elif model_name == 'UNet4':
+        return UNet4(base=UNet_base)
+    elif model_name == 'UNet5':
+        return UNet5(base=UNet_base)
+    else:
+        raise ValueError(f"Unknown model name: {model_name}")
+
+
 
 def main():
     setup_logging()
@@ -67,12 +108,13 @@ def main():
         project_dir = args.project_dir
         data_dir = args.data_dir
     else:
-        project_dir = r"Z:\members\Rauscher\projects\one_adj_slice\big_data_small-no_nema-no_droso-test_1"
-        data_dir = r"Z:\members\Rauscher\data\big_data_small\platynereis"
+        project_dir = r"\\tier2.embl.de\prevedel\members\Rauscher\final_projects\2D-N2N-general\test_3_big_data_small_2_model_nameUNet5_UNet_base16_num_epoch1000_batch_size8_lr1e-05_patience50"
+        data_dir = r"\\tier2.embl.de\prevedel\members\Rauscher\data\big_data_small-test\mouse"
 
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
     
     project_name = os.path.basename(project_dir)
+    method_name = os.path.basename(os.path.dirname(project_dir))
     inference_name = os.path.basename(data_dir)
     
     results_dir = os.path.join(project_dir, 'results')
@@ -113,26 +155,38 @@ def main():
         num_workers=2
     )
 
-    model = NewUNet()
-    model, epoch = load(checkpoints_dir, model, device=device)
+    # Load hyperparameters first to get model details
+    hyperparameters, epoch = load_hyperparameters(checkpoints_dir, device=device)
+    model_name = hyperparameters['model_name']
+    UNet_base = hyperparameters['UNet_base']
 
-    print("starting inference")
-    output_images = []
+    # Dynamically get model based on model_name and UNet_base
+    model = get_model(model_name, UNet_base)
+    model, optimizer, epoch = load_model(checkpoints_dir, model, device=device)
+
+    num_inf = len(inf_dataset)
+    num_batch = int((num_inf / batch_size) + ((num_inf % batch_size) != 0))
+
+    print("Starting inference")
+    output_images = []  # List to collect output images
 
     with torch.no_grad():
         model.eval()
+
         for batch, data in enumerate(inf_loader):
             input_img = data.to(device)
+
             output_img = model(input_img)
-            output_img_np = inv_inf_transform(output_img)
+            output_img_np = inv_inf_transform(output_img)  # Convert output tensors to numpy format for saving
 
             for img in output_img_np:
                 output_images.append(img)
 
             print('BATCH %04d/%04d' % (batch, len(inf_loader)))
     
+    # Stack and save output images
     output_stack = np.stack(output_images, axis=0)
-    filename = f'output_stack-{project_name}-{inference_name}-epoch{epoch}.TIFF'
+    filename = f'{method_name}_output_stack-{inference_name}-project-{project_name}-epoch{epoch}.TIFF'
     tifffile.imwrite(os.path.join(inference_folder, filename), output_stack)
 
     print("TIFF stacks created successfully.")
