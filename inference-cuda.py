@@ -5,9 +5,8 @@ import logging
 import glob
 import torch
 import numpy as np
-import tifffile
-from torchvision import transforms
 import time
+from torchvision import transforms
 
 sys.path.append(os.path.join(".."))
 
@@ -101,9 +100,6 @@ def main():
     results_dir = os.path.join(project_dir, 'results')
     checkpoints_dir = os.path.join(project_dir, 'checkpoints')
 
-    inference_folder = os.path.join(results_dir, inference_name)
-    os.makedirs(inference_folder, exist_ok=True)
-    
     filenames = glob.glob(os.path.join(data_dir, "*.tif")) + glob.glob(os.path.join(data_dir, "*.tiff"))
     print("Following files will be denoised:  ", filenames)
 
@@ -136,67 +132,60 @@ def main():
         num_workers=2
     )
 
-    # Load hyperparameters first to get model details
     hyperparameters, epoch = load_hyperparameters(checkpoints_dir, device=device)
     model_name = hyperparameters['model_name']
     UNet_base = hyperparameters['UNet_base']
 
-    # Dynamically get model based on model_name and UNet_base
     model = get_model(model_name, UNet_base)
     model, optimizer, epoch = load_model(checkpoints_dir, model, device=device)
 
     num_inf = len(inf_dataset)
     num_batch = int((num_inf / batch_size) + ((num_inf % batch_size) != 0))
 
+    inference_times = []
+
     print("Starting inference")
-    output_images = []  # List to collect output images
 
-    if torch.cuda.is_available():
-        start_event = torch.cuda.Event(enable_timing=True)
-        end_event = torch.cuda.Event(enable_timing=True)
-        start_event.record()
+    for i in range(10):
+        if torch.cuda.is_available():
+            start_event = torch.cuda.Event(enable_timing=True)
+            end_event = torch.cuda.Event(enable_timing=True)
+            start_event.record()
 
-        with torch.no_grad():
-            model.eval()
-            for batch, data in enumerate(inf_loader):
-                input_img = data.to(device)
-                output_img = model(input_img)
-                output_img_np = inv_inf_transform(output_img)  # Convert output tensors to numpy format for saving
+            with torch.no_grad():
+                model.eval()
+                for batch, data in enumerate(inf_loader):
+                    input_img = data.to(device)
+                    output_img = model(input_img)
+                    output_img_np = inv_inf_transform(output_img)
 
-                for img in output_img_np:
-                    output_images.append(img)
+                    #print('BATCH %04d/%04d' % (batch, len(inf_loader)))
 
-                print('BATCH %04d/%04d' % (batch, len(inf_loader)))
+            end_event.record()
+            torch.cuda.synchronize()
+            inference_time = start_event.elapsed_time(end_event) / 1000  # Convert to seconds
+        else:
+            start_time = time.time()
 
-        end_event.record()
-        torch.cuda.synchronize()
-        inference_time = start_event.elapsed_time(end_event) / 1000  # Convert to seconds
-    else:
-        start_time = time.time()
+            with torch.no_grad():
+                model.eval()
+                for batch, data in enumerate(inf_loader):
+                    input_img = data.to(device)
+                    output_img = model(input_img)
+                    output_img_np = inv_inf_transform(output_img)
 
-        with torch.no_grad():
-            model.eval()
-            for batch, data in enumerate(inf_loader):
-                input_img = data.to(device)
-                output_img = model(input_img)
-                output_img_np = inv_inf_transform(output_img)  # Convert output tensors to numpy format for saving
+                    #print('BATCH %04d/%04d' % (batch, len(inf_loader)))
 
-                for img in output_img_np:
-                    output_images.append(img)
+            inference_time = time.time() - start_time
 
-                print('BATCH %04d/%04d' % (batch, len(inf_loader)))
-
-        inference_time = time.time() - start_time
-
-    print(f"Inference Time: {inference_time} seconds")
-    logging.info(f"Inference Time: {inference_time} seconds")
+        inference_times.append(inference_time)
+        print(f"Inference {i+1} Time: {inference_time} seconds")
+        logging.info(f"Inference {i+1} Time: {inference_time} seconds")
     
-    # Stack and save output images
-    output_stack = np.stack(output_images, axis=0)
-    filename = f'{method_name}_output_stack-{inference_name}-project-{project_name}-epoch{epoch}.TIFF'
-    tifffile.imwrite(os.path.join(inference_folder, filename), output_stack)
-
-    print("TIFF stacks created successfully.")
+    avg_inference_time = np.mean(inference_times)
+    print(f"Average Inference Time: {avg_inference_time} seconds")
+    logging.info(f"Average Inference Time: {avg_inference_time} seconds")
 
 if __name__ == '__main__':
     main()
+
