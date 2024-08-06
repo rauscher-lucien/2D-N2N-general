@@ -131,9 +131,9 @@ def main():
     mean, std = load_normalization_params(checkpoints_dir)
     
     inf_transform = transforms.Compose([
-        Normalize(mean, std),
-        CropToMultipleOf16Inference(),
-        ToTensor(),
+        NormalizeInference(mean, std),
+        CropToMultipleOf32Inference(),
+        ToTensorInference(),
     ])
 
     inv_inf_transform = transforms.Compose([
