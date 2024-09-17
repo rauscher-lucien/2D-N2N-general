@@ -8,11 +8,11 @@ import torch
 
 class Normalize(object):
     """
-    Normalize an image using mean and standard deviation.
+    Normalize both input and target images using a specified mean and standard deviation.
     
     Args:
-        mean (float or tuple): Mean for each channel.
-        std (float or tuple): Standard deviation for each channel.
+        mean (float or tuple): Mean value used for normalization.
+        std (float or tuple): Standard deviation used for normalization.
     """
 
     def __init__(self, mean, std):
@@ -21,18 +21,17 @@ class Normalize(object):
 
     def __call__(self, data):
         """
+        Apply normalization to the input and target images.
+        
         Args:
-            data (tuple): Containing input and target images to be normalized.
+            data (tuple): A tuple containing the input and target images.
         
         Returns:
             Tuple: Normalized input and target images.
         """
         input_img, target_img = data
-
-        # Normalize input image
+        # Normalize the input and target images
         input_normalized = (input_img - self.mean) / self.std
-
-        # Normalize target image
         target_normalized = (target_img - self.mean) / self.std
 
         return input_normalized, target_normalized
@@ -40,11 +39,11 @@ class Normalize(object):
 
 class NormalizeInference(object):
     """
-    Normalize an image using mean and standard deviation.
+    Normalize input image for inference using mean and standard deviation.
     
     Args:
-        mean (float or tuple): Mean for each channel.
-        std (float or tuple): Standard deviation for each channel.
+        mean (float or tuple): Mean value used for normalization.
+        std (float or tuple): Standard deviation used for normalization.
     """
 
     def __init__(self, mean, std):
@@ -53,318 +52,236 @@ class NormalizeInference(object):
 
     def __call__(self, data):
         """
+        Normalize the input image (used during inference).
+        
         Args:
-            data (tuple): Containing input and target images to be normalized.
+            data: The input image.
         
         Returns:
-            Tuple: Normalized input and target images.
+            Normalized input image.
         """
         input_img = data
-
-        # Normalize input image
         input_normalized = (input_img - self.mean) / self.std
-
         return input_normalized
 
 
-class LogScaleAndNormalize(object):
-    """
-    Apply logarithmic scaling followed by Z-score normalization to a single-channel image.
-
-    Args:
-        mean (float): Mean of the log-scaled data.
-        std (float): Standard deviation of the log-scaled data.
-        epsilon (float): A small value added to the input to avoid logarithm of zero.
-
-    """
-
-    def __init__(self, mean, std, epsilon=1e-10):
-        self.mean = mean
-        self.std = std
-        self.epsilon = epsilon
-
-    def __call__(self, data):
-        """
-        Apply logarithmic scaling followed by Z-score normalization to a single-channel image with dimensions (1, H, W).
-
-        Args:
-            img (numpy.ndarray): Image to be transformed, expected to be in the format (1, H, W).
-
-        Returns:
-            numpy.ndarray: Transformed image.
-        """
-
-        input_img, target_img = data
-
-        log_scaled_mean = np.log(self.mean + self.epsilon)
-        log_scaled_std = np.log(self.std + self.epsilon)
-
-        log_scaled_input_img = np.log(input_img + self.epsilon)
-        log_scaled_target_img = np.log(target_img + self.epsilon)
-        
-
-        normalized_input_img = (log_scaled_input_img - log_scaled_mean) / log_scaled_std
-        normalized_target_img = (log_scaled_target_img - log_scaled_mean) / log_scaled_std
-
-
-        return normalized_input_img, normalized_target_img
-
-
-class RandomFlip(object):
-
-    def __call__(self, data):
-
-        input_img, target_img = data
-
-        if np.random.rand() > 0.5:
-            input_img = np.fliplr(input_img)
-            target_img = np.fliplr(target_img)
-
-        if np.random.rand() > 0.5:
-            input_img = np.flipud(input_img)
-            target_img = np.flipud(target_img)
-
-        return input_img, target_img
-    
-
 class RandomHorizontalFlip:
+    """
+    Randomly flip the input and target images horizontally with a 50% chance.
+    This transformation is typically used during training for data augmentation.
+    """
+
     def __call__(self, data):
         """
-        Apply random horizontal flipping to both the input stack of slices and the target slice.
-        In 50% of the cases, only horizontal flipping is applied without vertical flipping.
+        Apply horizontal flipping to both input and target images.
         
         Args:
-            data (tuple): A tuple containing the input stack and the target slice.
+            data (tuple): A tuple containing the input stack and target slice.
         
         Returns:
-            Tuple: Horizontally flipped input stack and target slice, if applied.
+            Tuple: Input and target images, possibly flipped horizontally.
         """
         input_stack, target_slice = data
 
-        # Apply horizontal flipping with a 50% chance
+        # Flip images with a probability of 50%
         if np.random.rand() > 0.5:
-            # Flip along the width axis (axis 1), keeping the channel dimension (axis 2) intact
-            input_stack = np.flip(input_stack, axis=1)
+            input_stack = np.flip(input_stack, axis=1)  # Flip horizontally (axis 1)
             target_slice = np.flip(target_slice, axis=1)
-
-        # With the modified requirements, we remove the vertical flipping part
-        # to ensure that only horizontal flipping is considered.
 
         return input_stack, target_slice
 
 
-
-
 class RandomCrop:
+    """
+    Randomly crop the input stack and target slice to the specified output size.
+    This transformation is used during training for data augmentation.
+    
+    Args:
+        output_size (tuple): The desired output size (height, width).
+    """
+
     def __init__(self, output_size=(64, 64)):
-        """
-        RandomCrop constructor for cropping both the input stack of slices and the target slice.
-        Args:
-            output_size (tuple): The desired output size (height, width).
-        """
         self.output_size = output_size
 
     def __call__(self, data):
         """
-        Apply the cropping operation.
+        Crop both input and target images randomly.
+        
         Args:
-            data (tuple): A tuple containing the input stack and the target slice.
+            data (tuple): A tuple containing the input stack and target slice.
+        
         Returns:
-            Tuple: Cropped input stack and target slice.
+            Tuple: Cropped input and target images.
         """
         input_stack, target_slice = data
 
         h, w = input_stack.shape
         new_h, new_w = self.output_size
 
+        # Randomly choose the top-left corner of the crop
         top = np.random.randint(0, h - new_h)
         left = np.random.randint(0, w - new_w)
 
+        # Crop the images
         input_cropped = input_stack[top:top+new_h, left:left+new_w]
         target_cropped = target_slice[top:top+new_h, left:left+new_w]
 
         return input_cropped, target_cropped
 
 
-    
-
-
 class CropToMultipleOf32Inference(object):
     """
-    Crop each slice in a stack of images to ensure their height and width are multiples of 32.
-    This is particularly useful for models that require input dimensions to be divisible by certain values.
+    Crop the input image to ensure its dimensions are multiples of 32.
+    This is useful for neural networks that require input dimensions divisible by 32.
     """
 
     def __call__(self, data):
         """
+        Crop the input image to dimensions divisible by 32.
+        
         Args:
-            stack (numpy.ndarray): Stack of images to be cropped, with shape (H, W, Num_Slices).
-
+            data (numpy.ndarray): Input image.
+        
         Returns:
-            numpy.ndarray: Stack of cropped images.
+            Cropped input image.
         """
-
         input_slice = data
-
         h, w = data.shape
 
+        # Adjust height and width to be divisible by 32
         new_h = h - (h % 32)
         new_w = w - (w % 32)
 
-        # Calculate cropping margins
+        # Crop the image symmetrically
         top = (h - new_h) // 2
         left = (w - new_w) // 2
 
-        # Generate indices for cropping
-        id_y = np.arange(top, top + new_h, 1)[:, np.newaxis].astype(np.int32)
-        id_x = np.arange(left, left + new_w, 1).astype(np.int32)
-
-        input_slice_cropped = input_slice[id_y, id_x].squeeze()
+        # Crop the image using the computed indices
+        input_slice_cropped = input_slice[top:top+new_h, left:left+new_w]
 
         return input_slice_cropped
-    
+
 
 class CropToMultipleOf16Inference(object):
     """
-    Crop each slice in a stack of images to ensure their height and width are multiples of 32.
-    This is particularly useful for models that require input dimensions to be divisible by certain values.
+    Crop the input image to ensure its dimensions are multiples of 16.
+    This version is similar to the 32 version but for dimensions divisible by 16.
     """
 
     def __call__(self, data):
         """
+        Crop the input image to dimensions divisible by 16.
+        
         Args:
-            stack (numpy.ndarray): Stack of images to be cropped, with shape (H, W, Num_Slices).
-
+            data (numpy.ndarray): Input image.
+        
         Returns:
-            numpy.ndarray: Stack of cropped images.
+            Cropped input image.
         """
-
         input_slice = data
-
         h, w = data.shape
 
+        # Adjust height and width to be divisible by 16
         new_h = h - (h % 16)
         new_w = w - (w % 16)
 
-        # Calculate cropping margins
+        # Crop the image symmetrically
         top = (h - new_h) // 2
         left = (w - new_w) // 2
 
-        # Generate indices for cropping
-        id_y = np.arange(top, top + new_h, 1)[:, np.newaxis].astype(np.int32)
-        id_x = np.arange(left, left + new_w, 1).astype(np.int32)
-
-        input_slice_cropped = input_slice[id_y, id_x].squeeze()
+        # Crop the image using the computed indices
+        input_slice_cropped = input_slice[top:top+new_h, left:left+new_w]
 
         return input_slice_cropped
-    
-
-class CropToMultipleOf16Validation(object):
-    """
-    Crop each slice in a stack of images to ensure their height and width are multiples of 32.
-    This is particularly useful for models that require input dimensions to be divisible by certain values.
-    """
-
-    def __call__(self, data):
-        """
-        Args:
-            stack (numpy.ndarray): Stack of images to be cropped, with shape (H, W, Num_Slices).
-
-        Returns:
-            numpy.ndarray: Stack of cropped images.
-        """
-
-        input_slice, target_slice = data
-        h, w = input_slice.shape  # Assuming stack is a numpy array with shape (H, W, Num_Slices)
-
-        new_h = h - (h % 16)
-        new_w = w - (w % 16)
-
-        # Calculate cropping margins
-        top = (h - new_h) // 2
-        left = (w - new_w) // 2
-
-        # Generate indices for cropping
-        id_y = np.arange(top, top + new_h, 1)[:, np.newaxis].astype(np.int32)
-        id_x = np.arange(left, left + new_w, 1).astype(np.int32)
-
-        input_slice_cropped = input_slice[id_y, id_x].squeeze()
-        target_slice_cropped = target_slice[id_y, id_x].squeeze()
-
-        return input_slice_cropped, target_slice_cropped
-
-
 
 
 class ToTensor(object):
+    """
+    Convert a NumPy array to a PyTorch tensor.
+    This transformation is typically used at the end of a pipeline to prepare the data for the model.
+    """
+
     def __call__(self, data):
+        """
+        Convert the input and target images to PyTorch tensors.
+        
+        Args:
+            data (tuple): A tuple containing the input and target images.
+        
+        Returns:
+            Tuple: Input and target images as tensors.
+        """
         def convert_image(img):
-            return torch.from_numpy(img.astype(np.float32))
+            return torch.from_numpy(img.astype(np.float32))  # Convert NumPy array to PyTorch tensor
         return tuple(convert_image(img) for img in data)
 
 
 class ToTensorInference(object):
+    """
+    Convert a single NumPy image to a PyTorch tensor for inference.
+    """
+
     def __call__(self, img):
-        # Convert a single image
+        # Convert the input image to a PyTorch tensor
         return torch.from_numpy(img.astype(np.float32))
 
 
 class ToNumpy(object):
+    """
+    Convert a PyTorch tensor back to a NumPy array.
+    Typically used for post-processing model outputs.
+    """
 
     def __call__(self, data):
-
+        # Convert tensor to NumPy array and transpose to [H, W, C] format
         return data.to('cpu').detach().numpy().transpose(0, 2, 3, 1)
-    
-    
 
-    
+
 class BackTo01Range(object):
     """
-    Normalize a tensor to the range [0, 1] based on its own min and max values.
+    Normalize a tensor to the range [0, 1] based on its minimum and maximum values.
+    Useful when the input has an arbitrary range.
     """
 
     def __call__(self, tensor):
         """
+        Normalize the tensor to [0, 1] range based on its dynamic range.
+        
         Args:
-            tensor: A tensor with any range of values.
+            tensor: A tensor with arbitrary range.
         
         Returns:
-            A tensor normalized to the range [0, 1].
+            Tensor: Normalized tensor in the range [0, 1].
         """
         min_val = tensor.min()
         max_val = tensor.max()
-        
-        # Avoid division by zero in case the tensor is constant
+
+        # Avoid division by zero
         if (max_val - min_val).item() > 0:
-            # Normalize the tensor to [0, 1] based on its dynamic range
             normalized_tensor = (tensor - min_val) / (max_val - min_val)
         else:
-            # If the tensor is constant, set it to a default value, e.g., 0, or handle as needed
-            normalized_tensor = tensor.clone().fill_(0)  # Here, setting all values to 0
+            # If the tensor is constant, return a tensor filled with zeros
+            normalized_tensor = tensor.clone().fill_(0)
 
         return normalized_tensor
 
 
 class Denormalize(object):
     """
-    Denormalize an image using mean and standard deviation, then convert it to 16-bit format.
-    
-    Args:
-        mean (float or tuple): Mean for each channel.
-        std (float or tuple): Standard deviation for each channel.
+    Denormalize an image using mean and standard deviation and convert it to 16-bit format.
     """
 
     def __init__(self, mean, std):
         """
-        Initialize with mean and standard deviation.
+        Initialize with mean and standard deviation values.
         
         Args:
-            mean (float or tuple): Mean for each channel.
-            std (float or tuple): Standard deviation for each channel.
+            mean (float or tuple): Mean for normalization.
+            std (float or tuple): Standard deviation for normalization.
         """
         self.mean = mean
         self.std = std
-    
+
     def __call__(self, img):
         """
         Denormalize the image and convert it to 16-bit format.
@@ -373,12 +290,13 @@ class Denormalize(object):
             img (numpy array): Normalized image.
         
         Returns:
-            numpy array: Denormalized 16-bit image.
+            Denormalized 16-bit image.
         """
-        # Denormalize the image by reversing the normalization process
+        # Reverse the normalization
         img_denormalized = (img * self.std) + self.mean
 
-        # Scale the image to the range [0, 65535] and convert to 16-bit unsigned integer
+        # Convert to 16-bit unsigned integer
         img_16bit = img_denormalized.astype(np.uint16)
-        
+
         return img_16bit
+
