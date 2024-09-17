@@ -56,8 +56,8 @@ def main():
 
     #********************************************************#
 
-    project_dir = r"\\tier2.embl.de\prevedel\members\Rauscher\final_projects\2D-N2N-general\test_3_big_data_small_2_model_nameUNet5_UNet_base16_num_epoch1000_batch_size8_lr1e-05_patience50"
-    data_dir = r"\\tier2.embl.de\prevedel\members\Rauscher\data\big_data_small-test\mouse"
+    project_dir = r"\\tier2.embl.de\prevedel\members\Rauscher\final_projects\2D-N2N-general\test_2_big_data_small_2_model_nameUNet4_UNet_base32_num_epoch1000_batch_size8_lr1e-05_patience50"
+    data_dir = r"\\tier2.embl.de\prevedel\members\Wang\Data\Mouse\Embryo\20230615\LogScale\Mouse_Embryo_10h"
     inference_name = os.path.basename(data_dir)
 
     project_name = os.path.basename(project_dir)

@@ -56,19 +56,27 @@ class InferenceDataset(torch.utils.data.Dataset):
         self.root_folder_path = root_folder_path
         self.transform = transform
         self.preloaded_data = {}  # To store preloaded data
-        self.slices = self.preload_and_make_slices(root_folder_path)
+        self.slices = self.preload_first_volume(root_folder_path)
 
-    def preload_and_make_slices(self, root_folder_path):
+    def preload_first_volume(self, root_folder_path):
         slices = []
+        volume_loaded = False  # Flag to stop after the first volume is processed
+
         for subdir, _, files in os.walk(root_folder_path):
             sorted_files = sorted([f for f in files if f.lower().endswith(('.tif', '.tiff'))])
             for f in sorted_files:
+                if volume_loaded:
+                    break  # Stop once the first volume is loaded
                 full_path = os.path.join(subdir, f)
                 volume = tifffile.imread(full_path)
-                self.preloaded_data[full_path] = volume  # Preload data here
+                self.preloaded_data[full_path] = volume  # Preload the first volume
                 num_slices = volume.shape[0]
-                for i in range(num_slices):  # Include all slices
+                for i in range(num_slices):  # Include all slices of the first volume
                     slices.append((full_path, i))
+                volume_loaded = True  # Set flag to true after processing the first volume
+            if volume_loaded:
+                break  # Exit the outer loop once the first volume is processed
+
         return slices
 
     def __len__(self):

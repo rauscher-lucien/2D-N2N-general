@@ -149,8 +149,6 @@ def denormalize_image(normalized_img, mean, std):
     return original_img.astype(np.float32)
 
 
-import os
-import pickle
 
 def load_normalization_params(data_dir):
     """
